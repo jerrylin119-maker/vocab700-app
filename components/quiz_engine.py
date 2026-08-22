@@ -8,6 +8,7 @@ import re
 import streamlit as st
 from typing import List, Dict, Any, Tuple
 from components.audio_player import render_speech_button
+from components.progress_tracker import record_quiz_attempt
 
 def create_masked_sentence(sentence: str, target_word: str) -> str:
     """Replaces occurrences of target word in the sentence with a blank underline `_______`."""
@@ -178,6 +179,7 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
     """Renders score calculation, evaluation badges, and in-depth explanation cards."""
     correct_count = 0
     total_q = len(questions)
+    wrong_words = []
 
     detailed_eval = []
     for q in questions:
@@ -189,6 +191,8 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
         is_correct = (user_ans.lower() == target.lower())
         if is_correct:
             correct_count += 1
+        else:
+            wrong_words.append(target)
 
         detailed_eval.append({
             "q": q,
@@ -199,21 +203,8 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
 
     score_pct = int((correct_count / total_q) * 100)
 
-    # Save high score to session_state
-    if "quiz_scores" not in st.session_state:
-        st.session_state["quiz_scores"] = {}
-    
-    prev_high = st.session_state["quiz_scores"].get(unit_id, 0)
-    if score_pct > prev_high:
-        st.session_state["quiz_scores"][unit_id] = score_pct
-        is_new_high = True
-    else:
-        is_new_high = False
-
-    # Mark completed
-    if "completed_units" not in st.session_state:
-        st.session_state["completed_units"] = set()
-    st.session_state["completed_units"].add(unit_id)
+    # Record quiz attempt to persistent log and update high score
+    record_quiz_attempt(unit_id, score_pct, correct_count, total_q, wrong_words)
 
     # Summary Card
     st.markdown(f"""

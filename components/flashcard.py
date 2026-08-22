@@ -7,6 +7,7 @@ import re
 import html
 from typing import List, Dict, Any
 from components.audio_player import render_dual_speech_controls, render_speech_button
+from components.progress_tracker import save_persistent_progress
 
 def highlight_target_word(sentence: str, target_word: str) -> str:
     """Highlights the target word in the example sentence with custom HTML styling."""
@@ -131,6 +132,7 @@ def render_flashcard_view(unit_words: List[Dict[str, Any]], unit_id: int):
                 if "completed_units" not in st.session_state:
                     st.session_state["completed_units"] = set()
                 st.session_state["completed_units"].add(unit_id)
+                save_persistent_progress()
                 st.balloons()
                 st.success(f"太棒了！您已完成 Unit {unit_id} 的全部單字學習！可以前往「隨堂測驗」進行測驗挑戰！")
 

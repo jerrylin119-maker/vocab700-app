@@ -17,7 +17,7 @@ from utils.data_loader import (
 )
 from components.flashcard import render_flashcard_view, render_word_list_view
 from components.quiz_engine import render_quiz_view
-from components.progress_tracker import init_progress_state, render_dashboard
+from components.progress_tracker import init_progress_state, render_dashboard, render_user_switcher_sidebar
 from components.audio_player import render_speech_button
 
 # Streamlit Page Config
@@ -55,6 +55,11 @@ total_words = len(vocab_data)
 with st.sidebar:
     st.markdown("## 🎓 700 單字學習與測驗")
     st.caption("每單元 10 字 • 語音朗讀 • 隨堂測驗")
+
+    # Multi-Child User Switcher (Timmy / Chloe)
+    render_user_switcher_sidebar()
+
+    st.markdown("---")
 
     # Main Navigation Mode
     nav_mode = st.radio(
