@@ -1,0 +1,236 @@
+/* Modern Aesthetics & Responsive Design for 700 Vocab App */
+
+/* Global & Layout Tweaks */
+.main .block-container {
+    padding-top: 1.8rem;
+    padding-bottom: 3rem;
+    max-width: 960px;
+}
+
+/* Flashcard Container */
+.flashcard-container {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px 28px 16px 28px;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.06), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+    margin-bottom: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.flashcard-container:hover {
+    box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.08);
+}
+
+.flashcard-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.flashcard-word-title {
+    font-size: 2.4rem;
+    font-weight: 800;
+    color: #1e293b;
+    letter-spacing: -0.02em;
+    margin: 4px 0 0 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.phonetic-text {
+    font-family: "Lucida Console", Monaco, monospace;
+    font-size: 1.15rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.word-id-tag {
+    margin-left: auto;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #94a3b8;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 6px;
+}
+
+/* POS Badges */
+.pos-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    border-radius: 9999px;
+    text-transform: lowercase;
+    letter-spacing: 0.02em;
+}
+
+.pos-v {
+    background-color: #ede9fe;
+    color: #6d28d9;
+    border: 1px solid #ddd6fe;
+}
+
+.pos-n {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+}
+
+.pos-adj {
+    background-color: #dcfce7;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+
+.pos-adv {
+    background-color: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+}
+
+.pos-prep, .pos-conj, .pos-pron {
+    background-color: #f1f5f9;
+    color: #475569;
+    border: 1px solid #e2e8f0;
+}
+
+/* Definition Content Box */
+.definition-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.english-def-text {
+    font-size: 1.05rem;
+    color: #334155;
+    line-height: 1.5;
+    margin-top: 4px;
+}
+
+.chinese-meaning-text {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #2563eb;
+    margin-top: 4px;
+}
+
+.example-sentence-text {
+    font-size: 1.02rem;
+    color: #475569;
+    font-style: italic;
+    line-height: 1.55;
+    margin-top: 4px;
+    background: #f8fafc;
+    padding: 10px 14px;
+    border-left: 4px solid #3b82f6;
+    border-radius: 0 8px 8px 0;
+}
+
+.target-word-highlight {
+    background: #fef08a;
+    color: #854d0e;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 4px;
+}
+
+/* Word List Rows */
+.word-list-row {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 6px;
+    transition: all 0.15s ease;
+}
+
+.word-list-row:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+
+/* Quiz Styling */
+.quiz-question-box {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.quiz-type-tag {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #4338ca;
+    background: #e0e7ff;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-left: 8px;
+}
+
+.quiz-score-card {
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    border: 1px solid #bfdbfe;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.explanation-box {
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 8px;
+    border: 1px solid transparent;
+}
+
+.explanation-box.result-correct {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.explanation-box.result-wrong {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.status-badge {
+    font-size: 0.85rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 9999px;
+}
+
+.status-badge.result-correct {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.status-badge.result-wrong {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* Legend Badges */
+.legend-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-right: 6px;
+}
+
+.bg-gold { background: #fef08a; color: #854d0e; border: 1px solid #facc15; }
+.bg-green { background: #bbf7d0; color: #166534; border: 1px solid #86efac; }
+.bg-yellow { background: #fed7aa; color: #9a3412; border: 1px solid #fdba74; }
+.bg-blue { background: #bfdbfe; color: #1e40af; border: 1px solid #93c5fd; }
+.bg-gray { background: #f3f4f6; color: #4b5563; border: 1px solid #e5e7eb; }
