@@ -205,27 +205,31 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
 
     # Check if this score is a new high record for this unit
     prev_high = st.session_state.get("quiz_scores", {}).get(unit_id, 0)
-    is_new_high = score_pct > prev_high
+    is_new_high = bool(score_pct > prev_high)
 
     # Record quiz attempt to persistent log and update high score
     record_quiz_attempt(unit_id, score_pct, correct_count, total_q, wrong_words)
 
-    # Summary Card
-    st.markdown(f"""
-    <div class="quiz-score-card">
-        <h2 style="margin: 0; color: #1e3a8a;">🎯 測驗結果結算</h2>
-        <div style="font-size: 2.5rem; font-weight: 800; color: {'#16a34a' if score_pct >= 80 else ('#d97706' if score_pct >= 60 else '#dc2626')}; margin: 8px 0;">
-            {score_pct}% <span style="font-size: 1.1rem; color: #64748b; font-weight: 500;">({correct_count} / {total_q} 題答對)</span>
-        </div>
-        <p style="margin: 0; font-size: 1rem; color: #334155;">
-            {'🏆 完美掌握！表現非常優異！' if score_pct == 100 else ('🌟 表現優良！已熟練掌握本單元單字！' if score_pct >= 80 else ('💪 尚可，建議多複習錯題後再次挑戰！' if score_pct >= 60 else '⚠️ 建議回到單字卡模式重新學習本單元！'))}
-        </p>
-        <div style="margin-top: 8px; font-size: 0.9rem; color: #64748b;">
-            Unit {unit_id} 歷史最高分：<strong>{st.session_state.get('quiz_scores', {}).get(unit_id, score_pct)}%</strong> 
-            {'(🎉 創下新紀錄！)' if is_new_high else ''}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Pre-calculate display strings
+    if score_pct == 100:
+        summary_msg = "🏆 完美掌握！表現非常優異！"
+        score_color = "#16a34a"
+    elif score_pct >= 80:
+        summary_msg = "🌟 表現優良！已熟練掌握本單元單字！"
+        score_color = "#16a34a"
+    elif score_pct >= 60:
+        summary_msg = "💪 尚可，建議多複習錯題後再次挑戰！"
+        score_color = "#d97706"
+    else:
+        summary_msg = "⚠️ 建議回到單字卡模式重新學習本單元！"
+        score_color = "#dc2626"
+
+    new_record_tag = " (🎉 創下新紀錄！)" if is_new_high else ""
+    high_score_val = st.session_state.get("quiz_scores", {}).get(unit_id, score_pct)
+
+    # Summary Card HTML
+    summary_card_html = f"""<div class="quiz-score-card"><h2 style="margin: 0; color: #1e3a8a;">🎯 測驗結果結算</h2><div style="font-size: 2.5rem; font-weight: 800; color: {score_color}; margin: 8px 0;">{score_pct}% <span style="font-size: 1.1rem; color: #64748b; font-weight: 500;">({correct_count} / {total_q} 題答對)</span></div><p style="margin: 0; font-size: 1rem; color: #334155;">{summary_msg}</p><div style="margin-top: 8px; font-size: 0.9rem; color: #64748b;">Unit {unit_id} 歷史最高分：<strong>{high_score_val}%</strong>{new_record_tag}</div></div>"""
+    st.markdown(summary_card_html, unsafe_allow_html=True)
 
     if score_pct >= 80:
         st.balloons()
