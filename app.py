@@ -169,9 +169,23 @@ elif nav_mode == "📖 單字庫與上傳":
 
         # Table display
         if search_results:
-            df_display = pd.DataFrame(search_results)[["id", "unit", "word", "phonetic", "pos", "chinese_meaning", "english_definition", "example_sentence"]]
-            df_display.columns = ["編號", "單元", "單字", "音標", "詞性", "中文釋義", "英英解釋", "例句"]
-            st.dataframe(df_display, use_container_width=True, height=450)
+            rows_data = []
+            for r in search_results:
+                deriv_list = [f"{d['word']}({d['pos']})" for d in r.get("derivatives", [])]
+                rows_data.append({
+                    "編號": r.get("id", ""),
+                    "單元": f"Unit {r.get('unit', '')}",
+                    "單字": r.get("word", ""),
+                    "音標": r.get("phonetic", ""),
+                    "詞性": r.get("pos", ""),
+                    "中文釋義": r.get("chinese_meaning", ""),
+                    "英英解釋": r.get("english_definition", ""),
+                    "🌱 衍生詞": ", ".join(deriv_list) if deriv_list else "-",
+                    "🔗 類似詞": ", ".join(r.get("synonyms", [])) if r.get("synonyms") else "-",
+                    "例句": r.get("example_sentence", "")
+                })
+            df_display = pd.DataFrame(rows_data)
+            st.dataframe(df_display, use_container_width=True, height=480)
         else:
             st.info("查無符合條件的單字。")
 

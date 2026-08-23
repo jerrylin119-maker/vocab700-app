@@ -97,6 +97,44 @@ def render_flashcard_view(unit_words: List[Dict[str, Any]], unit_id: int):
         st.markdown(f"**💡 例句範例 (Example):**")
         st.markdown(f"<div class='example-sentence-text'>“{highlighted_example}”</div>", unsafe_allow_html=True)
 
+        # Derivatives & Word Forms Section
+        derivatives = word_data.get("derivatives", [])
+        if derivatives:
+            st.markdown("<hr style='margin: 12px 0; border: none; border-top: 1px dashed #e5e7eb;' />", unsafe_allow_html=True)
+            st.markdown(f"**🌱 衍生詞與詞性變化 (Derivatives & Word Forms):**")
+            
+            deriv_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;'>"
+            for d in derivatives:
+                d_word = d.get("word", "")
+                d_pos = d.get("pos", "")
+                d_mean = d.get("meaning", "")
+                deriv_html += f"""
+                <div class="derivative-chip">
+                    <span style="font-weight: 700; color: #1e293b;">{d_word}</span>
+                    <span class="pos-badge pos-{d_pos.lower().replace('.', '')}">{d_pos}</span>
+                    <span style="color: #475569; font-size: 0.88rem;">{d_mean}</span>
+                </div>
+                """
+            deriv_html += "</div>"
+            st.markdown(deriv_html, unsafe_allow_html=True)
+
+        # Synonyms & Antonyms Section
+        synonyms = word_data.get("synonyms", [])
+        antonyms = word_data.get("antonyms", [])
+        if synonyms or antonyms:
+            st.markdown("<hr style='margin: 12px 0; border: none; border-top: 1px dashed #e5e7eb;' />", unsafe_allow_html=True)
+            syn_col1, syn_col2 = st.columns(2)
+            with syn_col1:
+                if synonyms:
+                    st.markdown("**🔗 同義詞 / 類似詞 (Synonyms):**")
+                    syn_tags = "".join([f"<span class='synonym-tag'>{s}</span>" for s in synonyms])
+                    st.markdown(f"<div style='display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;'>{syn_tags}</div>", unsafe_allow_html=True)
+            with syn_col2:
+                if antonyms:
+                    st.markdown("**⚡ 反義詞 (Antonyms):**")
+                    ant_tags = "".join([f"<span class='antonym-tag'>{a}</span>" for a in antonyms])
+                    st.markdown(f"<div style='display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;'>{ant_tags}</div>", unsafe_allow_html=True)
+
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Navigation Buttons
@@ -147,6 +185,17 @@ def render_word_list_view(unit_words: List[Dict[str, Any]], unit_id: int):
         chi = item.get("chinese_meaning", "")
         eng = item.get("english_definition", "")
         ex = item.get("example_sentence", "")
+        derivatives = item.get("derivatives", [])
+        synonyms = item.get("synonyms", [])
+
+        deriv_text = ""
+        if derivatives:
+            d_parts = [f"<strong>{d['word']}</strong> ({d['pos']} {d['meaning']})" for d in derivatives]
+            deriv_text = f"<div style='margin-top: 5px; font-size: 0.88rem; color: #0f766e;'>🌱 <strong>衍生詞：</strong> {'；'.join(d_parts)}</div>"
+
+        syn_text = ""
+        if synonyms:
+            syn_text = f"<div style='margin-top: 4px; font-size: 0.85rem; color: #6366f1;'>🔗 <strong>同義詞：</strong> {', '.join(synonyms)}</div>"
 
         with st.container():
             st.markdown(f"""
@@ -163,6 +212,8 @@ def render_word_list_view(unit_words: List[Dict[str, Any]], unit_id: int):
                 <div style="margin-top: 4px; font-size: 0.88rem; color: #64748b; font-style: italic;">
                     <strong>例句:</strong> {ex}
                 </div>
+                {deriv_text}
+                {syn_text}
             </div>
             """, unsafe_allow_html=True)
             

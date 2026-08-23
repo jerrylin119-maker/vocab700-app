@@ -36,6 +36,9 @@ def partition_units(vocab_list: List[Dict[str, Any]], words_per_unit: int = 10) 
         item_copy["english_definition"] = str(item_copy.get("english_definition", "")).strip()
         item_copy["chinese_meaning"] = str(item_copy.get("chinese_meaning", "")).strip()
         item_copy["example_sentence"] = str(item_copy.get("example_sentence", "")).strip()
+        item_copy["derivatives"] = item_copy.get("derivatives", [])
+        item_copy["synonyms"] = item_copy.get("synonyms", [])
+        item_copy["antonyms"] = item_copy.get("antonyms", [])
         updated_list.append(item_copy)
     return updated_list
 
