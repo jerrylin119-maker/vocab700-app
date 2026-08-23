@@ -203,6 +203,10 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
 
     score_pct = int((correct_count / total_q) * 100)
 
+    # Check if this score is a new high record for this unit
+    prev_high = st.session_state.get("quiz_scores", {}).get(unit_id, 0)
+    is_new_high = score_pct > prev_high
+
     # Record quiz attempt to persistent log and update high score
     record_quiz_attempt(unit_id, score_pct, correct_count, total_q, wrong_words)
 
@@ -217,7 +221,7 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
             {'🏆 完美掌握！表現非常優異！' if score_pct == 100 else ('🌟 表現優良！已熟練掌握本單元單字！' if score_pct >= 80 else ('💪 尚可，建議多複習錯題後再次挑戰！' if score_pct >= 60 else '⚠️ 建議回到單字卡模式重新學習本單元！'))}
         </p>
         <div style="margin-top: 8px; font-size: 0.9rem; color: #64748b;">
-            Unit {unit_id} 歷史最高分：<strong>{st.session_state['quiz_scores'].get(unit_id, score_pct)}%</strong> 
+            Unit {unit_id} 歷史最高分：<strong>{st.session_state.get('quiz_scores', {}).get(unit_id, score_pct)}%</strong> 
             {'(🎉 創下新紀錄！)' if is_new_high else ''}
         </div>
     </div>
@@ -242,29 +246,12 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
 
         badge_class = "result-correct" if is_correct else "result-wrong"
         badge_text = "✅ 答對 Correct" if is_correct else "❌ 答錯 Incorrect"
+        pos_cls = pos.lower().replace(".", "")
+        ans_color = "#16a34a" if is_correct else "#dc2626"
 
         with st.container():
-            st.markdown(f"""
-            <div class="explanation-box {badge_class}">
-                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                    <span style="font-weight: 700; font-size: 1.05rem;">第 {q['q_id']} 題：{q['masked_sentence']}</span>
-                    <span class="status-badge {badge_class}">{badge_text}</span>
-                </div>
-                <div style="margin: 6px 0; font-size: 0.95rem;">
-                    <strong>您的作答：</strong> <span style="color: {'#16a34a' if is_correct else '#dc2626'}; font-weight: 600;">{user_ans or '(未作答)'}</span>
-                    &nbsp;&nbsp;|&nbsp;&nbsp;
-                    <strong>正確答案：</strong> <span style="color: #2563eb; font-weight: 700; font-size: 1.1rem;">{target}</span>
-                    <span class="pos-badge pos-{pos.lower().replace('.', '')}">{pos}</span>
-                    <span style="color: #64748b; font-family: monospace;">{phonetic}</span>
-                </div>
-                <div style="color: #334155; margin-top: 4px;">
-                    <strong>中文釋義：</strong> {chi} &nbsp;|&nbsp; <strong>英英解釋：</strong> {eng}
-                </div>
-                <div style="color: #475569; margin-top: 4px; font-style: italic;">
-                    <strong>完整例句：</strong> “{sentence}”
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            explanation_html = f"""<div class="explanation-box {badge_class}"><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><span style="font-weight: 700; font-size: 1.05rem;">第 {q['q_id']} 題：{q['masked_sentence']}</span><span class="status-badge {badge_class}">{badge_text}</span></div><div style="margin: 6px 0; font-size: 0.95rem;"><strong>您的作答：</strong> <span style="color: {ans_color}; font-weight: 600;">{user_ans or '(未作答)'}</span>&nbsp;&nbsp;|&nbsp;&nbsp;<strong>正確答案：</strong> <span style="color: #2563eb; font-weight: 700; font-size: 1.1rem;">{target}</span> <span class="pos-badge pos-{pos_cls}">{pos}</span> <span style="color: #64748b; font-family: monospace;">{phonetic}</span></div><div style="color: #334155; margin-top: 4px;"><strong>中文釋義：</strong> {chi} &nbsp;|&nbsp; <strong>英英解釋：</strong> {eng}</div><div style="color: #475569; margin-top: 4px; font-style: italic;"><strong>完整例句：</strong> “{sentence}”</div></div>"""
+            st.markdown(explanation_html, unsafe_allow_html=True)
 
             # Audio Pronunciation Button for target word
             render_speech_button(text=target, label=f"🔊 發音 {target}", rate=0.95, key=f"res_tts_{unit_id}_{q['q_id']}", height=38)
