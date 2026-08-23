@@ -38,8 +38,8 @@ def load_css():
 load_css()
 init_progress_state()
 
-# Session State Initialization for Vocabulary Data
-if "vocab_data" not in st.session_state:
+# Session State Initialization for Vocabulary Data (Auto-refresh if missing derivatives)
+if "vocab_data" not in st.session_state or not st.session_state["vocab_data"] or "derivatives" not in st.session_state["vocab_data"][0]:
     st.session_state["vocab_data"] = load_default_vocab(
         os.path.join(os.path.dirname(__file__), "data", "default_vocab.json")
     )

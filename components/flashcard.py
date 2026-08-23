@@ -137,33 +137,45 @@ def render_flashcard_view(unit_words: List[Dict[str, Any]], unit_id: int):
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Navigation Buttons
+    # Navigation Callbacks & State Synchronization
+    options = [f"{i+1}. {w.get('word', '')}" for i, w in enumerate(unit_words)]
+    sb_key = f"select_word_unit_{unit_id}"
+
+    if sb_key not in st.session_state:
+        st.session_state[sb_key] = options[current_idx]
+
+    def go_prev():
+        if st.session_state[state_key] > 0:
+            st.session_state[state_key] -= 1
+            st.session_state[sb_key] = options[st.session_state[state_key]]
+
+    def go_next():
+        if st.session_state[state_key] < total_in_unit - 1:
+            st.session_state[state_key] += 1
+            st.session_state[sb_key] = options[st.session_state[state_key]]
+
+    def on_select_change():
+        selected = st.session_state.get(sb_key)
+        if selected in options:
+            st.session_state[state_key] = options.index(selected)
+
+    # Navigation Buttons Row
     nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])
     with nav_col1:
-        if st.button("◀ 上一個", use_container_width=True, disabled=(current_idx == 0)):
-            st.session_state[state_key] = max(0, current_idx - 1)
-            st.rerun()
+        st.button("◀ 上一個", use_container_width=True, disabled=(current_idx == 0), on_click=go_prev, key=f"btn_prev_{unit_id}")
 
     with nav_col2:
-        # Quick dropdown selector
-        options = [f"{i+1}. {w.get('word', '')}" for i, w in enumerate(unit_words)]
-        selected_option = st.selectbox(
+        st.selectbox(
             "快速跳轉單字",
             options=options,
-            index=current_idx,
             label_visibility="collapsed",
-            key=f"select_word_unit_{unit_id}"
+            key=sb_key,
+            on_change=on_select_change
         )
-        new_idx = options.index(selected_option)
-        if new_idx != current_idx:
-            st.session_state[state_key] = new_idx
-            st.rerun()
 
     with nav_col3:
         if current_idx < total_in_unit - 1:
-            if st.button("下一個 ▶", use_container_width=True, type="primary"):
-                st.session_state[state_key] = current_idx + 1
-                st.rerun()
+            st.button("下一個 ▶", use_container_width=True, type="primary", on_click=go_next, key=f"btn_next_{unit_id}")
         else:
             if st.button("🎉 完成單元", use_container_width=True, type="primary"):
                 # Mark unit as completed in progress state
