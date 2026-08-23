@@ -101,21 +101,18 @@ def render_flashcard_view(unit_words: List[Dict[str, Any]], unit_id: int):
         derivatives = word_data.get("derivatives", [])
         if derivatives:
             st.markdown("<hr style='margin: 12px 0; border: none; border-top: 1px dashed #e5e7eb;' />", unsafe_allow_html=True)
-            st.markdown(f"**🌱 衍生詞與詞性變化 (Derivatives & Word Forms):**")
+            st.markdown("**🌱 衍生詞與詞性變化 (Derivatives & Word Forms):**")
             
-            deriv_html = "<div style='display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;'>"
+            chips = []
             for d in derivatives:
-                d_word = d.get("word", "")
-                d_pos = d.get("pos", "")
-                d_mean = d.get("meaning", "")
-                deriv_html += f"""
-                <div class="derivative-chip">
-                    <span style="font-weight: 700; color: #1e293b;">{d_word}</span>
-                    <span class="pos-badge pos-{d_pos.lower().replace('.', '')}">{d_pos}</span>
-                    <span style="color: #475569; font-size: 0.88rem;">{d_mean}</span>
-                </div>
-                """
-            deriv_html += "</div>"
+                d_word = html.escape(str(d.get("word", "")))
+                d_pos = html.escape(str(d.get("pos", "")))
+                d_mean = html.escape(str(d.get("meaning", "")))
+                pos_cls = d_pos.lower().replace(".", "")
+                chips.append(
+                    f'<div class="derivative-chip"><span style="font-weight: 700; color: #1e293b;">{d_word}</span> <span class="pos-badge pos-{pos_cls}">{d_pos}</span> <span style="color: #475569; font-size: 0.88rem;">{d_mean}</span></div>'
+                )
+            deriv_html = f'<div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px;">{"".join(chips)}</div>'
             st.markdown(deriv_html, unsafe_allow_html=True)
 
         # Synonyms & Antonyms Section
@@ -127,13 +124,13 @@ def render_flashcard_view(unit_words: List[Dict[str, Any]], unit_id: int):
             with syn_col1:
                 if synonyms:
                     st.markdown("**🔗 同義詞 / 類似詞 (Synonyms):**")
-                    syn_tags = "".join([f"<span class='synonym-tag'>{s}</span>" for s in synonyms])
-                    st.markdown(f"<div style='display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;'>{syn_tags}</div>", unsafe_allow_html=True)
+                    syn_tags = "".join([f'<span class="synonym-tag">{html.escape(s)}</span>' for s in synonyms])
+                    st.markdown(f'<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">{syn_tags}</div>', unsafe_allow_html=True)
             with syn_col2:
                 if antonyms:
                     st.markdown("**⚡ 反義詞 (Antonyms):**")
-                    ant_tags = "".join([f"<span class='antonym-tag'>{a}</span>" for a in antonyms])
-                    st.markdown(f"<div style='display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;'>{ant_tags}</div>", unsafe_allow_html=True)
+                    ant_tags = "".join([f'<span class="antonym-tag">{html.escape(a)}</span>' for a in antonyms])
+                    st.markdown(f'<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">{ant_tags}</div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
 
