@@ -5,17 +5,20 @@ Handles question generation, scoring, instant evaluation, and explanation review
 
 import random
 import re
+import html
 import streamlit as st
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 from components.audio_player import render_speech_button
-from components.progress_tracker import record_quiz_attempt
 
 def create_masked_sentence(sentence: str, target_word: str) -> str:
     """Replaces occurrences of target word in the sentence with a blank underline `_______`."""
     if not sentence or not target_word:
+        return sentence or ""
+    try:
+        pattern = re.compile(rf"\b{re.escape(target_word)}[a-zA-Z]*\b", re.IGNORECASE)
+        return pattern.sub("________", sentence)
+    except Exception:
         return sentence
-    pattern = re.compile(rf"\b{re.escape(target_word)}[a-zA-Z]*\b", re.IGNORECASE)
-    return pattern.sub("________", sentence)
 
 def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -25,26 +28,25 @@ def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict
     2. 'choice_sentence': Multiple Choice from Sentence with Blank
     3. 'spelling': Fill-in-the-blank spelling from sentence + Chinese hint
     """
-    questions = []
-    # All candidate distractor words from full dataset
-    all_words = [w["word"] for w in full_dataset if w.get("word")]
+    if not unit_words:
+        return []
 
-    # Shuffle unit words
+    questions = []
+    all_words = [w.get("word", "").strip() for w in full_dataset if w.get("word")]
+    all_words = [w for w in all_words if w]
+
     words_pool = list(unit_words)
     random.shuffle(words_pool)
 
-    # Assign question types across the words
-    # Half choice, half spelling
     for idx, item in enumerate(words_pool):
-        target_word = item.get("word", "")
-        pos = item.get("pos", "")
-        phonetic = item.get("phonetic", "")
-        chi = item.get("chinese_meaning", "")
-        eng = item.get("english_definition", "")
-        sentence = item.get("example_sentence", "")
+        target_word = str(item.get("word", "")).strip()
+        pos = str(item.get("pos", "")).strip()
+        phonetic = str(item.get("phonetic", "")).strip()
+        chi = str(item.get("chinese_meaning", "")).strip()
+        eng = str(item.get("english_definition", "")).strip()
+        sentence = str(item.get("example_sentence", "")).strip()
         masked_sentence = create_masked_sentence(sentence, target_word)
 
-        # Distribute question types evenly
         q_type_mod = idx % 3
         if q_type_mod == 0:
             q_type = "choice_def"
@@ -53,11 +55,9 @@ def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict
         else:
             q_type = "spelling"
 
-        # Generate 4 options for multiple choice
         if q_type in ["choice_def", "choice_sentence"]:
-            # Pick 3 random distinct distractors
             distractors = [w for w in all_words if w.lower() != target_word.lower()]
-            sampled_distractors = random.sample(distractors, min(3, len(distractors)))
+            sampled_distractors = random.sample(distractors, min(3, len(distractors))) if len(distractors) >= 3 else distractors
             options = sampled_distractors + [target_word]
             random.shuffle(options)
         else:
@@ -88,16 +88,15 @@ def render_quiz_view(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[s
     quiz_submitted_key = f"quiz_submitted_unit_{unit_id}"
     user_answers_key = f"quiz_answers_unit_{unit_id}"
 
-    # Initialize quiz questions if not present
     if quiz_state_key not in st.session_state:
         st.session_state[quiz_state_key] = generate_unit_quiz(unit_words, full_dataset)
         st.session_state[quiz_submitted_key] = False
         st.session_state[user_answers_key] = {}
 
-    questions = st.session_state[quiz_state_key]
-    is_submitted = st.session_state[quiz_submitted_key]
+    questions = st.session_state.get(quiz_state_key, [])
+    is_submitted = st.session_state.get(quiz_submitted_key, False)
 
-    # Action buttons at top: Start over / Re-generate
+    # Re-generate quiz button
     col_t1, col_t2 = st.columns([3, 1])
     with col_t2:
         if st.button("🔄 重新出題 (New Quiz)", use_container_width=True):
@@ -109,14 +108,14 @@ def render_quiz_view(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[s
     # Form for quiz answering
     with st.form(key=f"quiz_form_unit_{unit_id}"):
         for q in questions:
-            q_id = q["q_id"]
-            q_type = q["type"]
-            target_word = q["target_word"]
-            pos = q["pos"]
-            chi = q["chinese_meaning"]
-            eng = q["english_definition"]
-            masked = q["masked_sentence"]
-            options = q["options"]
+            q_id = q.get("q_id", 1)
+            q_type = q.get("type", "choice_def")
+            target_word = q.get("target_word", "")
+            pos = q.get("pos", "")
+            chi = q.get("chinese_meaning", "")
+            eng = q.get("english_definition", "")
+            masked = q.get("masked_sentence", "")
+            options = q.get("options", [])
 
             st.markdown(f"""
             <div class="quiz-question-box">
@@ -154,8 +153,9 @@ def render_quiz_view(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[s
                 st.session_state[user_answers_key][q_id] = ans
 
             elif q_type == "spelling":
+                first_letter = target_word[0].upper() if target_word else "A"
                 st.markdown(f"**句子挖空：** “{masked}”")
-                st.markdown(f"**提示：** 中文意思為「**{chi}**」(詞性: `{pos}`)，首字母為 `{target_word[0].upper()}`，共 {len(target_word)} 個字母")
+                st.markdown(f"**提示：** 中文意思為「**{chi}**」(詞性: `{pos}`)，首字母為 `{first_letter}`，共 {len(target_word)} 個字母")
                 ans = st.text_input(
                     f"Q{q_id} 請手動輸入正確拼字：",
                     placeholder="請在此輸入英文單字...",
@@ -170,29 +170,33 @@ def render_quiz_view(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[s
             st.session_state[quiz_submitted_key] = True
             st.rerun()
 
-    # If quiz is submitted, render results and full detailed explanations
+    # Results view
     if is_submitted:
         st.markdown("---")
-        render_quiz_results(unit_id, questions, st.session_state[user_answers_key])
+        render_quiz_results(unit_id, questions, st.session_state.get(user_answers_key, {}))
 
 def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answers: Dict[int, Any]):
     """Renders score calculation, evaluation badges, and in-depth explanation cards."""
-    correct_count = 0
-    total_q = len(questions)
-    wrong_words = []
+    if not questions:
+        st.warning("測驗資料為空。")
+        return
 
+    correct_count = 0
+    total_q = max(1, len(questions))
+    wrong_words = []
     detailed_eval = []
+
     for q in questions:
-        q_id = q["q_id"]
-        target = q["target_word"].strip()
+        q_id = q.get("q_id", 1)
+        target = str(q.get("target_word", "")).strip()
         user_ans = str(user_answers.get(q_id, "") or "").strip()
 
-        # Case-insensitive comparison
-        is_correct = (user_ans.lower() == target.lower())
+        is_correct = bool(user_ans and target and (user_ans.lower() == target.lower()))
         if is_correct:
             correct_count += 1
         else:
-            wrong_words.append(target)
+            if target:
+                wrong_words.append(target)
 
         detailed_eval.append({
             "q": q,
@@ -203,14 +207,19 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
 
     score_pct = int((correct_count / total_q) * 100)
 
-    # Check if this score is a new high record for this unit
-    prev_high = st.session_state.get("quiz_scores", {}).get(unit_id, 0)
+    # Check high score safely
+    quiz_scores = st.session_state.get("quiz_scores", {})
+    prev_high = quiz_scores.get(unit_id, 0)
     is_new_high = bool(score_pct > prev_high)
 
-    # Record quiz attempt to persistent log and update high score
-    record_quiz_attempt(unit_id, score_pct, correct_count, total_q, wrong_words)
+    # Save to history & persistence
+    try:
+        from components.progress_tracker import record_quiz_attempt
+        record_quiz_attempt(unit_id, score_pct, correct_count, total_q, wrong_words)
+    except Exception as err:
+        print(f"Error recording quiz attempt: {err}")
 
-    # Pre-calculate display strings
+    # Summary texts
     if score_pct == 100:
         summary_msg = "🏆 完美掌握！表現非常優異！"
         score_color = "#16a34a"
@@ -225,28 +234,39 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
         score_color = "#dc2626"
 
     new_record_tag = " (🎉 創下新紀錄！)" if is_new_high else ""
-    high_score_val = st.session_state.get("quiz_scores", {}).get(unit_id, score_pct)
+    current_high_score = st.session_state.get("quiz_scores", {}).get(unit_id, score_pct)
 
-    # Summary Card HTML
-    summary_card_html = f"""<div class="quiz-score-card"><h2 style="margin: 0; color: #1e3a8a;">🎯 測驗結果結算</h2><div style="font-size: 2.5rem; font-weight: 800; color: {score_color}; margin: 8px 0;">{score_pct}% <span style="font-size: 1.1rem; color: #64748b; font-weight: 500;">({correct_count} / {total_q} 題答對)</span></div><p style="margin: 0; font-size: 1rem; color: #334155;">{summary_msg}</p><div style="margin-top: 8px; font-size: 0.9rem; color: #64748b;">Unit {unit_id} 歷史最高分：<strong>{high_score_val}%</strong>{new_record_tag}</div></div>"""
-    st.markdown(summary_card_html, unsafe_allow_html=True)
+    # Render Summary Card
+    st.markdown(f"""
+    <div class="quiz-score-card">
+        <h2 style="margin: 0; color: #1e3a8a;">🎯 測驗結果結算</h2>
+        <div style="font-size: 2.5rem; font-weight: 800; color: {score_color}; margin: 8px 0;">
+            {score_pct}% <span style="font-size: 1.1rem; color: #64748b; font-weight: 500;">({correct_count} / {total_q} 題答對)</span>
+        </div>
+        <p style="margin: 0; font-size: 1rem; color: #334155;">{summary_msg}</p>
+        <div style="margin-top: 8px; font-size: 0.9rem; color: #64748b;">
+            Unit {unit_id} 歷史最高分：<strong>{current_high_score}%</strong>{new_record_tag}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if score_pct >= 80:
         st.balloons()
 
-    # Render Detailed Explanation Cards
+    # Render Explanation Cards
     st.markdown("### 📝 逐題解析與發音檢視")
 
     for item in detailed_eval:
-        q = item["q"]
-        is_correct = item["is_correct"]
-        user_ans = item["user_ans"]
-        target = item["target"]
-        pos = q["pos"]
-        phonetic = q["phonetic"]
-        chi = q["chinese_meaning"]
-        eng = q["english_definition"]
-        sentence = q["sentence"]
+        q = item.get("q", {})
+        is_correct = item.get("is_correct", False)
+        user_ans = item.get("user_ans", "")
+        target = item.get("target", "")
+        pos = q.get("pos", "")
+        phonetic = q.get("phonetic", "")
+        chi = q.get("chinese_meaning", "")
+        eng = q.get("english_definition", "")
+        sentence = q.get("sentence", "")
+        masked_s = q.get("masked_sentence", "")
 
         badge_class = "result-correct" if is_correct else "result-wrong"
         badge_text = "✅ 答對 Correct" if is_correct else "❌ 答錯 Incorrect"
@@ -254,9 +274,9 @@ def render_quiz_results(unit_id: int, questions: List[Dict[str, Any]], user_answ
         ans_color = "#16a34a" if is_correct else "#dc2626"
 
         with st.container():
-            explanation_html = f"""<div class="explanation-box {badge_class}"><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><span style="font-weight: 700; font-size: 1.05rem;">第 {q['q_id']} 題：{q['masked_sentence']}</span><span class="status-badge {badge_class}">{badge_text}</span></div><div style="margin: 6px 0; font-size: 0.95rem;"><strong>您的作答：</strong> <span style="color: {ans_color}; font-weight: 600;">{user_ans or '(未作答)'}</span>&nbsp;&nbsp;|&nbsp;&nbsp;<strong>正確答案：</strong> <span style="color: #2563eb; font-weight: 700; font-size: 1.1rem;">{target}</span> <span class="pos-badge pos-{pos_cls}">{pos}</span> <span style="color: #64748b; font-family: monospace;">{phonetic}</span></div><div style="color: #334155; margin-top: 4px;"><strong>中文釋義：</strong> {chi} &nbsp;|&nbsp; <strong>英英解釋：</strong> {eng}</div><div style="color: #475569; margin-top: 4px; font-style: italic;"><strong>完整例句：</strong> “{sentence}”</div></div>"""
+            explanation_html = f"""<div class="explanation-box {badge_class}"><div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;"><span style="font-weight: 700; font-size: 1.05rem;">第 {q.get('q_id', 1)} 題：{html.escape(masked_s)}</span><span class="status-badge {badge_class}">{badge_text}</span></div><div style="margin: 6px 0; font-size: 0.95rem;"><strong>您的作答：</strong> <span style="color: {ans_color}; font-weight: 600;">{html.escape(user_ans or '(未作答)')}</span>&nbsp;&nbsp;|&nbsp;&nbsp;<strong>正確答案：</strong> <span style="color: #2563eb; font-weight: 700; font-size: 1.1rem;">{html.escape(target)}</span> <span class="pos-badge pos-{pos_cls}">{pos}</span> <span style="color: #64748b; font-family: monospace;">{phonetic}</span></div><div style="color: #334155; margin-top: 4px;"><strong>中文釋義：</strong> {html.escape(chi)} &nbsp;|&nbsp; <strong>英英解釋：</strong> {html.escape(eng)}</div><div style="color: #475569; margin-top: 4px; font-style: italic;"><strong>完整例句：</strong> “{html.escape(sentence)}”</div></div>"""
             st.markdown(explanation_html, unsafe_allow_html=True)
 
             # Audio Pronunciation Button for target word
-            render_speech_button(text=target, label=f"🔊 發音 {target}", rate=0.95, key=f"res_tts_{unit_id}_{q['q_id']}", height=38)
+            render_speech_button(text=target, label=f"🔊 發音 {target}", rate=0.95, key=f"res_tts_{unit_id}_{q.get('q_id', 1)}", height=38)
             st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
