@@ -7,7 +7,7 @@ import re
 import html
 from typing import List, Dict, Any
 from components.audio_player import render_dual_speech_controls, render_speech_button
-from components.progress_tracker import save_persistent_progress
+from components.progress_tracker import save_persistent_progress, update_last_reading_position
 
 def highlight_target_word(sentence: str, target_word: str) -> str:
     """Highlights the target word in the example sentence with custom HTML styling."""
@@ -144,17 +144,23 @@ def render_flashcard_view(unit_words: List[Dict[str, Any]], unit_id: int):
     def go_prev():
         if st.session_state[state_key] > 0:
             st.session_state[state_key] -= 1
-            st.session_state[sb_key] = options[st.session_state[state_key]]
+            new_idx = st.session_state[state_key]
+            st.session_state[sb_key] = options[new_idx]
+            update_last_reading_position(unit_id, new_idx)
 
     def go_next():
         if st.session_state[state_key] < total_in_unit - 1:
             st.session_state[state_key] += 1
-            st.session_state[sb_key] = options[st.session_state[state_key]]
+            new_idx = st.session_state[state_key]
+            st.session_state[sb_key] = options[new_idx]
+            update_last_reading_position(unit_id, new_idx)
 
     def on_select_change():
         selected = st.session_state.get(sb_key)
         if selected in options:
-            st.session_state[state_key] = options.index(selected)
+            new_idx = options.index(selected)
+            st.session_state[state_key] = new_idx
+            update_last_reading_position(unit_id, new_idx)
 
     # Navigation Buttons Row
     nav_col1, nav_col2, nav_col3 = st.columns([1, 2, 1])

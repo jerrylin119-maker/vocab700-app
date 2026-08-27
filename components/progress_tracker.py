@@ -1,7 +1,8 @@
 """
 Multi-Child Learning Progress Tracker and Visual Dashboard module.
 Supports independent profiles for Timmy, Chloe, and custom learners.
-Auto-persists progress to user_progress.json, with side-by-side comparison and error diagnosis.
+Auto-persists progress to user_progress.json, with side-by-side comparison, error diagnosis,
+and per-user last reading position memory (unit and card index).
 """
 
 import os
@@ -13,6 +14,17 @@ from typing import List, Dict, Any
 PROGRESS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "user_progress.json")
 DEFAULT_PROFILES = ["👦 Timmy", "👧 Chloe"]
 
+def get_default_user_data() -> Dict[str, Any]:
+    """Returns a fresh default profile structure."""
+    return {
+        "completed_units": [],
+        "quiz_scores": {},
+        "quiz_history": [],
+        "last_unit": 1,
+        "last_card_index": 0,
+        "last_study_time": ""
+    }
+
 def load_persistent_progress() -> Dict[str, Any]:
     """Loads saved progress from user_progress.json file."""
     if os.path.exists(PROGRESS_FILE):
@@ -21,17 +33,25 @@ def load_persistent_progress() -> Dict[str, Any]:
                 data = json.load(f)
                 if "users" not in data or not data["users"]:
                     data["users"] = {
-                        "👦 Timmy": {"completed_units": [], "quiz_scores": {}, "quiz_history": []},
-                        "👧 Chloe": {"completed_units": [], "quiz_scores": {}, "quiz_history": []}
+                        "👦 Timmy": get_default_user_data(),
+                        "👧 Chloe": get_default_user_data()
                     }
+                # Ensure all users have last_unit and last_card_index
+                for u_key, u_val in data["users"].items():
+                    if "last_unit" not in u_val:
+                        u_val["last_unit"] = 1
+                    if "last_card_index" not in u_val:
+                        u_val["last_card_index"] = 0
+                    if "last_study_time" not in u_val:
+                        u_val["last_study_time"] = ""
                 return data
         except Exception as e:
             print(f"Error loading progress file: {e}")
     return {
         "current_user": "👦 Timmy",
         "users": {
-            "👦 Timmy": {"completed_units": [], "quiz_scores": {}, "quiz_history": []},
-            "👧 Chloe": {"completed_units": [], "quiz_scores": {}, "quiz_history": []}
+            "👦 Timmy": get_default_user_data(),
+            "👧 Chloe": get_default_user_data()
         }
     }
 
@@ -43,11 +63,17 @@ def save_persistent_progress():
         if "users" not in data:
             data["users"] = {}
         
+        active_u = st.session_state.get("active_unit", 1)
+        active_c = st.session_state.get(f"unit_{active_u}_card_idx", 0)
+
         data["current_user"] = user
         data["users"][user] = {
             "completed_units": list(st.session_state.get("completed_units", set())),
             "quiz_scores": {str(k): v for k, v in st.session_state.get("quiz_scores", {}).items()},
-            "quiz_history": st.session_state.get("quiz_history", [])
+            "quiz_history": st.session_state.get("quiz_history", []),
+            "last_unit": active_u,
+            "last_card_index": active_c,
+            "last_study_time": st.session_state.get("last_study_time", datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
         }
         
         os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
@@ -56,31 +82,66 @@ def save_persistent_progress():
     except Exception as e:
         print(f"Error saving progress file: {e}")
 
+def update_last_reading_position(unit_id: int, card_idx: int = 0):
+    """Updates the active reading position (unit and card) for the current user and persists immediately."""
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    st.session_state["active_unit"] = unit_id
+    st.session_state[f"unit_{unit_id}_card_idx"] = card_idx
+    st.session_state["last_study_time"] = now_str
+    
+    # Sync selectbox widget key if present
+    sb_key = f"select_word_unit_{unit_id}"
+    if sb_key in st.session_state and "vocab_data" in st.session_state:
+        # We will let flashcard sync options
+        pass
+    
+    save_persistent_progress()
+
 def switch_user(new_user: str):
-    """Switches the active user and loads their respective progress."""
+    """Switches the active user and restores their respective progress and last reading position."""
     # First save current user's state
     if "current_user" in st.session_state:
         save_persistent_progress()
         
     data = load_persistent_progress()
     st.session_state["current_user"] = new_user
-    user_data = data.get("users", {}).get(new_user, {"completed_units": [], "quiz_scores": {}, "quiz_history": []})
+    user_data = data.get("users", {}).get(new_user, get_default_user_data())
     
     st.session_state["completed_units"] = set(user_data.get("completed_units", []))
     st.session_state["quiz_scores"] = {int(k): v for k, v in user_data.get("quiz_scores", {}).items()}
     st.session_state["quiz_history"] = user_data.get("quiz_history", [])
+    
+    # Restore last reading position
+    last_u = int(user_data.get("last_unit", 1))
+    last_c = int(user_data.get("last_card_index", 0))
+    st.session_state["active_unit"] = max(1, last_u)
+    st.session_state[f"unit_{last_u}_card_idx"] = max(0, last_c)
+    st.session_state["last_study_time"] = user_data.get("last_study_time", "")
+
+    # Clear old quiz state keys so new user gets fresh quiz
+    keys_to_clear = [k for k in st.session_state.keys() if k.startswith("quiz_questions_unit_") or k.startswith("quiz_submitted_unit_") or k.startswith("quiz_answers_unit_")]
+    for k in keys_to_clear:
+        del st.session_state[k]
 
 def init_progress_state():
-    """Initializes persistent progress states from persistent file or defaults."""
+    """Initializes persistent progress states and restores user's last reading position."""
     if "progress_initialized" not in st.session_state:
         saved = load_persistent_progress()
         current_user = saved.get("current_user", "👦 Timmy")
         st.session_state["current_user"] = current_user
         
-        user_data = saved.get("users", {}).get(current_user, {"completed_units": [], "quiz_scores": {}, "quiz_history": []})
+        user_data = saved.get("users", {}).get(current_user, get_default_user_data())
         st.session_state["completed_units"] = set(user_data.get("completed_units", []))
         st.session_state["quiz_scores"] = {int(k): v for k, v in user_data.get("quiz_scores", {}).items()}
         st.session_state["quiz_history"] = user_data.get("quiz_history", [])
+        
+        # Restore last reading position
+        last_u = int(user_data.get("last_unit", 1))
+        last_c = int(user_data.get("last_card_index", 0))
+        st.session_state["active_unit"] = max(1, last_u)
+        st.session_state[f"unit_{last_u}_card_idx"] = max(0, last_c)
+        st.session_state["last_study_time"] = user_data.get("last_study_time", "")
+        
         st.session_state["progress_initialized"] = True
 
 def render_user_switcher_sidebar():
@@ -110,13 +171,19 @@ def render_user_switcher_sidebar():
         switch_user(selected_user)
         st.rerun()
 
+    # Show mini reading position badge
+    user_data = data.get("users", {}).get(current_user, {})
+    last_u = user_data.get("last_unit", 1)
+    last_c = user_data.get("last_card_index", 0) + 1
+    st.sidebar.caption(f"📌 目前進度：**Unit {last_u:02d}** 第 **{last_c}** 字")
+
     # Expandable to add new student profile
     with st.sidebar.expander("➕ 新增其他學員", expanded=False):
         new_name = st.text_input("輸入新學員姓名", key="new_student_name_input", placeholder="例如：Leo")
         if st.button("確認新增", use_container_width=True):
             if new_name.strip():
                 formatted_name = f"🌟 {new_name.strip()}"
-                data["users"][formatted_name] = {"completed_units": [], "quiz_scores": {}, "quiz_history": []}
+                data["users"][formatted_name] = get_default_user_data()
                 with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
                     json.dump(data, f, ensure_ascii=False, indent=2)
                 switch_user(formatted_name)
@@ -173,7 +240,7 @@ def render_dashboard(total_units: int, total_words: int):
 
     # Top Header & User Identity
     st.markdown(f"## 📊 【{current_user}】的學習進度與數據儀表板")
-    st.caption("支援 Timmy 與 Chloe 獨立分開記錄 • 70 單元掌握度色塊圖 • 雙寶學習榮譽榜")
+    st.caption("支援 Timmy 與 Chloe 獨立分開記錄 • 記住每個人上次閱讀進度 • 雙寶學習榮譽榜")
 
     # Top Metric Cards for Active User
     m1, m2, m3, m4 = st.columns(4)
@@ -269,7 +336,7 @@ def render_dashboard(total_units: int, total_words: int):
     # 2. Dual-Child Comparison
     with tab_comparison:
         st.markdown("### 🏆 雙寶學習進度對比榜")
-        st.caption("方便家長同時檢視 Timmy 與 Chloe 的學習成效，互相鼓勵！")
+        st.caption("方便家長同時檢視 Timmy 與 Chloe 的最新閱讀進度與學習成效！")
 
         user_list = list(all_users.keys())
         comp_cols = st.columns(len(user_list) if user_list else 2)
@@ -280,6 +347,9 @@ def render_dashboard(total_units: int, total_words: int):
             u_scores = {int(k): v for k, v in u_info.get("quiz_scores", {}).items()}
             u_avg = int(sum(u_scores.values()) / len(u_scores)) if u_scores else 0
             u_mastered = sum(1 for s in u_scores.values() if s == 100)
+            u_last_u = u_info.get("last_unit", 1)
+            u_last_c = u_info.get("last_card_index", 0) + 1
+            u_last_time = u_info.get("last_study_time", "")
 
             with comp_cols[idx]:
                 st.markdown(f"""
@@ -293,8 +363,12 @@ def render_dashboard(total_units: int, total_words: int):
                     margin-bottom: 16px;
                 ">
                     <h3 style="margin: 0; color: #1e293b;">{u_name}</h3>
-                    <div style="font-size: 0.85rem; color: {'#2563eb' if u_name == current_user else '#64748b'}; font-weight: 600; margin-bottom: 12px;">
+                    <div style="font-size: 0.85rem; color: {'#2563eb' if u_name == current_user else '#64748b'}; font-weight: 600; margin-bottom: 6px;">
                         {'（目前使用中）' if u_name == current_user else ' '}
+                    </div>
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 6px; margin-bottom: 12px; font-size: 0.85rem; color: #475569;">
+                        📍 <strong>最後進度：</strong> Unit {u_last_u:02d} 第 {u_last_c} 字<br/>
+                        <span style="font-size: 0.75rem; color: #94a3b8;">⏱️ {u_last_time or '尚未開始'}</span>
                     </div>
                     <div style="display: flex; justify-content: space-around; margin-top: 10px;">
                         <div>
@@ -381,7 +455,7 @@ def render_dashboard(total_units: int, total_words: int):
             mime="application/json",
             use_container_width=True
         )
-        st.caption("包含 Timmy 與 Chloe 的所有學習與測驗紀錄。")
+        st.caption("包含 Timmy 與 Chloe 的所有學習、測驗與最後進度紀錄。")
 
     with col_imp:
         upload_backup = st.file_uploader("匯入學習進度 (JSON)", type=["json"], key="backup_uploader")
@@ -402,6 +476,8 @@ def render_dashboard(total_units: int, total_words: int):
             st.session_state["completed_units"] = set()
             st.session_state["quiz_scores"] = {}
             st.session_state["quiz_history"] = []
+            st.session_state["active_unit"] = 1
+            st.session_state["unit_1_card_idx"] = 0
             save_persistent_progress()
             st.warning(f"{current_user} 的學習紀錄已重設！")
             st.rerun()

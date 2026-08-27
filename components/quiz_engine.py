@@ -2,7 +2,7 @@
 Quiz Engine module supporting Multiple Choice and Spelling Fill-in-the-Blank modes.
 Handles question generation, scoring, instant evaluation, and explanation review cards.
 Features:
-- Smart Distractor Engine: Prioritizes words from the same 10-word unit and confusable/same-POS words.
+- Strict Intra-Unit Options: 100% of multiple-choice options are strictly chosen from the 10 words in the same unit.
 """
 
 import random
@@ -22,96 +22,49 @@ def create_masked_sentence(sentence: str, target_word: str) -> str:
     except Exception:
         return sentence
 
-def get_smart_distractors(target_item: Dict[str, Any], unit_words: List[Dict[str, Any]], full_dataset: List[Dict[str, Any]], count: int = 3) -> List[str]:
+def get_unit_strictly_distractors(target_item: Dict[str, Any], unit_words: List[Dict[str, Any]], count: int = 3) -> List[str]:
     """
-    Generates high-quality, challenging distractors for multiple-choice questions.
-    
-    Pedagogical Priority:
-    1. Intra-Unit Words: Pull from the other 9 words in the SAME unit first.
-       - Prioritizes same-POS words within the unit.
-       - Forces the student to distinguish between all 10 words learned in this unit.
-    2. Confusable / Similar Words: Same starting letters, prefix, word length, or POS.
-    3. Fallback to general vocabulary pool if unit has too few items.
+    Strictly picks distractors ONLY from the other 9 words in the SAME 10-word unit.
+    Prioritizes words with the same Part-of-Speech within the unit.
     """
     target_word = str(target_item.get("word", "")).strip()
     target_pos = str(target_item.get("pos", "")).strip().lower().replace(".", "")
-    target_first_char = target_word[0].lower() if target_word else ""
 
-    chosen_distractors = []
-
-    # 1. Intra-unit candidates (the other 9 words in the same unit)
-    unit_other_words = [w for w in unit_words if w.get("word", "").strip().lower() != target_word.lower()]
-
-    # Subdivide unit words by same POS vs other POS
-    same_pos_unit = [
-        w.get("word", "").strip() for w in unit_other_words 
-        if w.get("pos", "").strip().lower().replace(".", "") == target_pos and w.get("word")
-    ]
-    other_pos_unit = [
-        w.get("word", "").strip() for w in unit_other_words 
-        if w.get("word", "").strip() not in same_pos_unit and w.get("word")
+    # Get all other words from the same unit
+    other_unit_words = [
+        w for w in unit_words 
+        if str(w.get("word", "")).strip().lower() != target_word.lower() and str(w.get("word", "")).strip()
     ]
 
-    random.shuffle(same_pos_unit)
-    random.shuffle(other_pos_unit)
+    # Split into same POS vs other POS within this unit
+    same_pos = [
+        str(w.get("word", "")).strip() for w in other_unit_words 
+        if str(w.get("pos", "")).strip().lower().replace(".", "") == target_pos
+    ]
+    other_pos = [
+        str(w.get("word", "")).strip() for w in other_unit_words 
+        if str(w.get("word", "")).strip() not in same_pos
+    ]
 
-    # Prioritize same-POS words in the unit first, then other unit words
-    unit_candidates = same_pos_unit + other_pos_unit
-    for w in unit_candidates:
-        if w and w.lower() != target_word.lower() and w not in chosen_distractors:
-            chosen_distractors.append(w)
-            if len(chosen_distractors) >= count:
+    random.shuffle(same_pos)
+    random.shuffle(other_pos)
+
+    # Combine: same-pos in unit first, then other words in unit
+    candidate_pool = same_pos + other_pos
+
+    chosen = []
+    for w in candidate_pool:
+        if w and w.lower() != target_word.lower() and w not in chosen:
+            chosen.append(w)
+            if len(chosen) >= count:
                 break
 
-    # 2. If we need more distractors, find confusable words across full dataset
-    if len(chosen_distractors) < count and full_dataset:
-        confusable = []
-        for w in full_dataset:
-            word_str = str(w.get("word", "")).strip()
-            if not word_str or word_str.lower() == target_word.lower():
-                continue
-            if word_str in chosen_distractors:
-                continue
-            
-            w_pos = str(w.get("pos", "")).strip().lower().replace(".", "")
-            score = 0
-            if word_str[0].lower() == target_first_char:
-                score += 3
-            if len(word_str) >= 3 and len(target_word) >= 3 and word_str[:2].lower() == target_word[:2].lower():
-                score += 4
-            if w_pos == target_pos:
-                score += 2
-            if abs(len(word_str) - len(target_word)) <= 2:
-                score += 1
-            
-            if score >= 3:
-                confusable.append((score, word_str))
+    return chosen[:count]
 
-        confusable.sort(key=lambda x: x[0], reverse=True)
-        for _, word_str in confusable:
-            if word_str not in chosen_distractors:
-                chosen_distractors.append(word_str)
-                if len(chosen_distractors) >= count:
-                    break
-
-    # 3. Fallback to general vocabulary
-    if len(chosen_distractors) < count and full_dataset:
-        all_fallback = [
-            str(w.get("word", "")).strip() for w in full_dataset 
-            if w.get("word", "").strip().lower() != target_word.lower() and w.get("word", "").strip() not in chosen_distractors
-        ]
-        random.shuffle(all_fallback)
-        chosen_distractors.extend(all_fallback[:(count - len(chosen_distractors))])
-
-    return chosen_distractors[:count]
-
-def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """
     Generates a 10-question mixed quiz for a given unit.
-    Mixed question types:
-    1. 'choice_def': Multiple Choice from English Definition (distractors from same unit / confusable)
-    2. 'choice_sentence': Multiple Choice from Sentence with Blank (distractors from same unit / confusable)
-    3. 'spelling': Fill-in-the-blank spelling from sentence + Chinese hint
+    ALL multiple choice options are 100% strictly chosen from the 10 words in this unit!
     """
     if not unit_words:
         return []
@@ -139,8 +92,8 @@ def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict
             q_type = "spelling"
 
         if q_type in ["choice_def", "choice_sentence"]:
-            # Intelligent Distractors: picked from the same 10 unit words & confusable words
-            distractors = get_smart_distractors(item, unit_words, full_dataset, count=3)
+            # Strictly pull 3 distractors from the other 9 words in the same unit
+            distractors = get_unit_strictly_distractors(item, unit_words, count=3)
             options = distractors + [target_word]
             random.shuffle(options)
         else:
@@ -165,13 +118,32 @@ def generate_unit_quiz(unit_words: List[Dict[str, Any]], full_dataset: List[Dict
 def render_quiz_view(unit_words: List[Dict[str, Any]], full_dataset: List[Dict[str, Any]], unit_id: int):
     """Renders the interactive quiz interface with submission and detailed explanation."""
     st.markdown(f"## ✍️ Unit {unit_id} 隨堂測驗")
-    st.caption("測驗包含「單字釋義選擇題」、「例句挖空選擇題」與「拼字填空題」，選項皆來自本單元或高混淆單字。")
+    st.caption("測驗包含「單字釋義選擇題」、「例句挖空選擇題」與「拼字填空題」，選擇題選項皆由本單元 10 個單字打散出題。")
 
     quiz_state_key = f"quiz_questions_unit_{unit_id}"
     quiz_submitted_key = f"quiz_submitted_unit_{unit_id}"
     user_answers_key = f"quiz_answers_unit_{unit_id}"
 
+    unit_word_set = set(str(w.get("word", "")).strip().lower() for w in unit_words if w.get("word"))
+
+    # Force regenerate if not present OR if options in cached quiz contain external words from old session
+    need_regenerate = False
     if quiz_state_key not in st.session_state:
+        need_regenerate = True
+    else:
+        existing_q = st.session_state.get(quiz_state_key, [])
+        if not existing_q:
+            need_regenerate = True
+        else:
+            # Check if any choice option is not in unit_word_set (i.e. old cached quiz)
+            for q in existing_q:
+                if q.get("type") in ["choice_def", "choice_sentence"]:
+                    for opt in q.get("options", []):
+                        if opt.lower() not in unit_word_set:
+                            need_regenerate = True
+                            break
+
+    if need_regenerate:
         st.session_state[quiz_state_key] = generate_unit_quiz(unit_words, full_dataset)
         st.session_state[quiz_submitted_key] = False
         st.session_state[user_answers_key] = {}
