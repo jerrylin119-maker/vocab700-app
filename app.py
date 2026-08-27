@@ -17,7 +17,7 @@ from utils.data_loader import (
 )
 from components.flashcard import render_flashcard_view, render_word_list_view
 from components.quiz_engine import render_quiz_view
-from components.progress_tracker import init_progress_state, render_dashboard, render_user_switcher_sidebar
+from components.progress_tracker import init_progress_state, render_dashboard, render_user_switcher_sidebar, update_last_reading_position
 from components.audio_player import render_speech_button
 
 # Streamlit Page Config
@@ -53,8 +53,8 @@ total_words = len(vocab_data)
 
 # ----------------- SIDEBAR -----------------
 with st.sidebar:
-    st.markdown("## 🎓 700 單字學習與測驗")
-    st.caption("每單元 10 字 • 語音朗讀 • 隨堂測驗")
+    st.markdown("## 🎓 700 單字學習與測驗 (v2 智能版)")
+    st.caption("自動記憶個人進度 • 同單元打散測驗")
 
     # Multi-Child User Switcher (Timmy / Chloe)
     render_user_switcher_sidebar()
@@ -102,18 +102,18 @@ with st.sidebar:
         )
         selected_unit = unit_options.index(selected_unit_str) + 1
         if selected_unit != st.session_state["active_unit"]:
-            st.session_state["active_unit"] = selected_unit
+            update_last_reading_position(selected_unit, 0)
             st.rerun()
 
         # Previous / Next Unit Buttons
         u_col1, u_col2 = st.columns(2)
         with u_col1:
             if st.button("⬅ 前一單元", use_container_width=True, disabled=(st.session_state["active_unit"] <= 1)):
-                st.session_state["active_unit"] -= 1
+                update_last_reading_position(st.session_state["active_unit"] - 1, 0)
                 st.rerun()
         with u_col2:
             if st.button("後一單元 ➡", use_container_width=True, disabled=(st.session_state["active_unit"] >= total_units)):
-                st.session_state["active_unit"] += 1
+                update_last_reading_position(st.session_state["active_unit"] + 1, 0)
                 st.rerun()
 
     # Progress Mini Summary in Sidebar
@@ -125,11 +125,14 @@ with st.sidebar:
 
 # ----------------- MAIN CONTENT AREA -----------------
 
-active_unit = st.session_state["active_unit"]
+active_unit = st.session_state.get("active_unit", 1)
 unit_words = get_unit_words(vocab_data, active_unit)
+current_user = st.session_state.get("current_user", "👦 Timmy")
 
 if nav_mode == "📚 單元學習":
+    card_idx_now = st.session_state.get(f"unit_{active_unit}_card_idx", 0) + 1
     st.markdown(f"## 📚 Unit {active_unit} 單元學習")
+    st.caption(f"👤 當前學習者：**{current_user}** • 系統已為您自動載入上次閱讀位置：**Unit {active_unit:02d}** 第 **{card_idx_now}** 字")
     
     # Sub-tabs for Flashcard vs List View
     study_subtab = st.radio(
