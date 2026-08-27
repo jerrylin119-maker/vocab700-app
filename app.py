@@ -19,6 +19,7 @@ from components.flashcard import render_flashcard_view, render_word_list_view
 from components.quiz_engine import render_quiz_view
 from components.progress_tracker import init_progress_state, render_dashboard, render_user_switcher_sidebar, update_last_reading_position
 from components.audio_player import render_speech_button
+from components.word_bank import render_word_bank_page
 
 # Streamlit Page Config
 st.set_page_config(
@@ -64,7 +65,7 @@ with st.sidebar:
     # Main Navigation Mode
     nav_mode = st.radio(
         "導航功能",
-        options=["📚 單元學習", "✍️ 隨堂測驗", "📊 學習儀表板", "📖 單字庫與上傳"],
+        options=["📚 單元學習", "✍️ 隨堂測驗", "📊 學習儀表板", "📝 我的單字本", "📖 單字庫與上傳"],
         index=0,
         label_visibility="collapsed"
     )
@@ -153,6 +154,9 @@ elif nav_mode == "✍️ 隨堂測驗":
 
 elif nav_mode == "📊 學習儀表板":
     render_dashboard(total_units, total_words)
+
+elif nav_mode == "📝 我的單字本":
+    render_word_bank_page(current_user)
 
 elif nav_mode == "📖 單字庫與上傳":
     st.markdown("## 📖 單字資料庫與資料管理")
