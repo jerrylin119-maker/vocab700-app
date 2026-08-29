@@ -1,9 +1,7 @@
 """
 Personal Word Bank component.
-Allows each user (Timmy / Chloe) to save custom vocabulary words for later review.
-User only needs to type the English word - all other data is auto-fetched from:
-  1. The existing 700-word vocab database (st.session_state vocab_data)
-  2. Free English dictionary API (dictionaryapi.dev) as fallback
+User types only the English word; system auto-looks up all data.
+Words NOT found in either the 700-word DB or the dictionary API are REJECTED (not saved).
 Data is stored per-user inside data/user_progress.json under 'my_words'.
 """
 
@@ -58,7 +56,7 @@ def save_word_to_bank(user: str, word_dict: Dict) -> bool:
 
     existing_words = [w.get("word", "").strip().lower() for w in data["users"][user]["my_words"]]
     if word_dict.get("word", "").strip().lower() in existing_words:
-        return False  # duplicate
+        return False
 
     word_dict["added_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     data["users"][user]["my_words"].append(word_dict)
@@ -78,8 +76,8 @@ def delete_word_from_bank(user: str, word: str):
 
 def _lookup_word(word_str: str) -> tuple:
     """
-    Looks up a word. Returns (word_dict, source_label).
-    Priority: 700-word DB > free dictionary API > bare entry.
+    Looks up a word. Returns (word_dict, source_label) on success,
+    or (None, error_message) if the word cannot be found or is misspelled.
     """
     # 1. Try vocab database
     vocab_data = st.session_state.get("vocab_data", [])
@@ -100,7 +98,7 @@ def _lookup_word(word_str: str) -> tuple:
         with urllib.request.urlopen(req, timeout=6) as resp:
             api_data = json.loads(resp.read())
 
-        if api_data and isinstance(api_data, list):
+        if api_data and isinstance(api_data, list) and "word" in api_data[0]:
             entry = api_data[0]
             actual_word = entry.get("word", word_str)
             meanings = entry.get("meanings", [])
@@ -115,18 +113,19 @@ def _lookup_word(word_str: str) -> tuple:
                 "chinese_meaning": "",
                 "english_definition": eng_def,
                 "example_sentence": example_raw,
-            }, "🌐 資料來源：英文線上字典（中文意思暫無，可至單字本列表查看）"
+            }, "🌐 資料來源：英文線上字典（此字不在 700 字庫，中文意思暫無）"
+
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            # Word genuinely not found = likely misspelled
+            return None, f"❌ 查無此字「{word_str}」，可能是拼字錯誤。請確認後再試，單字未加入。"
+        # Other HTTP error
+        return None, f"⚠️ 字典查詢失敗（HTTP {e.code}），單字未加入，請稍後再試。"
     except Exception:
         pass
 
-    # 3. Fallback: bare entry
-    return {
-        "word": word_str,
-        "pos": "",
-        "chinese_meaning": "",
-        "english_definition": "",
-        "example_sentence": "",
-    }, "⚠️ 查詢失敗，已用基本格式加入（英文字典無此字，請確認拼字）"
+    # Network error (can't reach API)
+    return None, "⚠️ 網路連線失敗，無法確認此字是否正確，單字未加入。請確認網路後再試。"
 
 
 def _word_preview_html(wd: Dict) -> str:
@@ -173,7 +172,7 @@ def render_word_bank_page(current_user: str):
     # ── Tab 1: Add Word (single input, auto-lookup) ──────────────────
     with tab_add:
         st.markdown("### ➕ 新增不熟悉的單字")
-        st.caption("只需輸入英文單字，系統會自動查詢詞性、中文意思、英文解釋與例句。")
+        st.caption("只需輸入英文單字，系統會自動查詢詞性、中文意思、英文解釋與例句。拼字錯誤的單字不會被加入。")
 
         new_word_input = st.text_input(
             "🔤 輸入英文單字",
@@ -189,14 +188,18 @@ def render_word_bank_page(current_user: str):
                 with st.spinner("查詢中…"):
                     word_dict, source_label = _lookup_word(word_str)
 
-                ok = save_word_to_bank(current_user, word_dict)
-                if ok:
-                    st.success(f"✅ 「{word_dict['word']}」已加入您的單字本！")
-                    st.caption(source_label)
-                    st.markdown(_word_preview_html(word_dict), unsafe_allow_html=True)
-                    st.balloons()
+                if word_dict is None:
+                    # Word not found anywhere — show error, do NOT save
+                    st.error(source_label)
                 else:
-                    st.warning(f"「{word_dict['word']}」已在您的單字本中，不重複加入。")
+                    ok = save_word_to_bank(current_user, word_dict)
+                    if ok:
+                        st.success(f"✅ 「{word_dict['word']}」已加入您的單字本！")
+                        st.caption(source_label)
+                        st.markdown(_word_preview_html(word_dict), unsafe_allow_html=True)
+                        st.balloons()
+                    else:
+                        st.warning(f"「{word_dict['word']}」已在您的單字本中，不重複加入。")
 
     # ── Tab 2: List View ─────────────────────────────────────────────
     with tab_list:
@@ -390,7 +393,6 @@ def _render_wordbank_quiz(words: List[Dict], user: str):
     with st.form(key=f"wb_quiz_form_{user}"):
         for q in questions:
             q_id = q["q_id"]
-            hint = q.get("english_definition") or q.get("chinese_meaning") or ""
             st.markdown(f"**第 {q_id} 題：** 請選出正確的英文單字")
             if q.get("chinese_meaning"):
                 st.markdown(f"🈶 **{q['chinese_meaning']}**")
