@@ -54,6 +54,15 @@
       "last_card_index": 0,
       "last_study_time": "",
       "my_words": []
+    },
+    "🌟 jerry": {
+      "completed_units": [],
+      "quiz_scores": {},
+      "quiz_history": [],
+      "last_unit": 1,
+      "last_card_index": 0,
+      "last_study_time": "",
+      "my_words": []
     }
   }
 }
