@@ -10,6 +10,25 @@
       },
       "quiz_history": [
         {
+          "timestamp": "2026-08-31 14:44",
+          "unit": 4,
+          "score": 0,
+          "correct": 0,
+          "total": 10,
+          "wrong_words": [
+            "approach",
+            "argument",
+            "appeal",
+            "anxious",
+            "appropriate",
+            "anticipate",
+            "aspect",
+            "appreciate",
+            "approve",
+            "apparent"
+          ]
+        },
+        {
           "timestamp": "2026-08-31 14:43",
           "unit": 4,
           "score": 70,
