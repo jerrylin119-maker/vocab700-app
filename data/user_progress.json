@@ -2,9 +2,26 @@
   "current_user": "👦 Timmy",
   "users": {
     "👦 Timmy": {
-      "completed_units": [],
-      "quiz_scores": {},
-      "quiz_history": [],
+      "completed_units": [
+        4
+      ],
+      "quiz_scores": {
+        "4": 70
+      },
+      "quiz_history": [
+        {
+          "timestamp": "2026-08-31 14:43",
+          "unit": 4,
+          "score": 70,
+          "correct": 7,
+          "total": 10,
+          "wrong_words": [
+            "appropriate",
+            "approve",
+            "apparent"
+          ]
+        }
+      ],
       "last_unit": 4,
       "last_card_index": 0,
       "last_study_time": "2026-08-29 15:36",
