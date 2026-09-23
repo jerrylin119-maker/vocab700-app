@@ -8,16 +8,24 @@ PERSISTENCE STRATEGY:
   Fallback: Local filesystem (works in local dev, lost on server restart)
 
 GitHub token is read from st.secrets["GITHUB_TOKEN"].
+
+GitHub writes are throttled for frequent, low-stakes updates (flashcard
+navigation) so we don't create a new commit on every click — see
+_GH_SYNC_MIN_INTERVAL_SEC and the force_github flag on save_persistent_progress.
+Meaningful events (quiz results, word bank changes, resets, user switches,
+backup import) always sync immediately, and a failed GitHub sync now
+surfaces a warning instead of failing silently.
 """
 
 import os
 import json
+import time
 import datetime
 import urllib.request
 import urllib.error
 import base64
 import streamlit as st
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 # ── Config ────────────────────────────────────────────────────────────────────
 PROGRESS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "user_progress.json")
@@ -26,6 +34,7 @@ _GH_OWNER  = "jerrylin119-maker"
 _GH_REPO   = "vocab700-app"
 _GH_BRANCH = "data-storage"
 _GH_PATH   = "data/user_progress.json"
+_GH_SYNC_MIN_INTERVAL_SEC = 20  # throttle for non-forced (low-stakes) GitHub writes
 
 
 def _gh_token() -> str:
@@ -63,11 +72,15 @@ def _load_from_github() -> Dict | None:
         return None
 
 
-def _save_to_github(data: Dict):
-    """Saves user_progress.json to the data-storage branch via GitHub API."""
+def _save_to_github(data: Dict) -> Tuple[bool, Optional[str]]:
+    """Saves user_progress.json to the data-storage branch via GitHub API.
+
+    Returns (success, error_reason). error_reason is None both on success
+    and when no token is configured (expected in local dev — not an error).
+    """
     token = _gh_token()
     if not token:
-        return
+        return False, None
     try:
         # Get current SHA first
         url = (
@@ -105,8 +118,11 @@ def _save_to_github(data: Dict):
             method="PUT"
         )
         urllib.request.urlopen(put_req, timeout=10)
-    except Exception:
-        pass  # silently fail — local save still happened
+        return True, None
+    except urllib.error.HTTPError as e:
+        return False, f"GitHub API 錯誤（HTTP {e.code}）"
+    except Exception as e:
+        return False, f"連線失敗：{e}"
 
 
 def get_default_user_data() -> Dict[str, Any]:
@@ -158,20 +174,31 @@ def load_persistent_progress() -> Dict[str, Any]:
 
 
 def save_full_progress_data(data: Dict[str, Any]):
-    """Persists an already-assembled progress dict locally and to GitHub.
+    """Persists an already-assembled progress dict locally and to GitHub, immediately.
 
-    Shared by any caller (e.g. the word bank) that reads/writes the full
-    progress structure directly instead of going through session_state,
-    so every writer ends up on the same GitHub-backed persistence path.
+    Shared by any caller (e.g. the word bank, user management) that reads/writes
+    the full progress structure directly instead of going through session_state,
+    so every writer ends up on the same GitHub-backed persistence path. These
+    calls are for deliberate, infrequent actions (add word, add student, restore
+    backup) so unlike save_persistent_progress() they are never throttled.
     """
     os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
     with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    _save_to_github(data)
+    ok, err = _save_to_github(data)
+    if err:
+        st.warning(f"⚠️ 已存在本機，但雲端同步失敗：{err}（重新整理或容器重啟後這筆變更可能遺失，請稍後再試一次）")
+    return ok
 
 
-def save_persistent_progress():
-    """Saves current session progress both locally and to GitHub."""
+def save_persistent_progress(force_github: bool = True):
+    """Saves current session progress locally always, and to GitHub either
+    immediately (force_github=True, the default — use for meaningful events
+    like quiz results or resets) or throttled to at most once every
+    _GH_SYNC_MIN_INTERVAL_SEC seconds (force_github=False — use for frequent,
+    low-stakes updates like flashcard navigation) so routine clicking doesn't
+    create a new GitHub commit every time.
+    """
     try:
         data = load_persistent_progress()
         user = st.session_state.get("current_user", "👦 Timmy")
@@ -199,20 +226,29 @@ def save_persistent_progress():
         with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        # Save to GitHub (persistent across server restarts)
-        _save_to_github(data)
+        # Save to GitHub — immediately if forced, otherwise throttled
+        now = time.time()
+        last_sync = st.session_state.get("_last_gh_sync_ts", 0.0)
+        if force_github or (now - last_sync >= _GH_SYNC_MIN_INTERVAL_SEC):
+            ok, err = _save_to_github(data)
+            if ok:
+                st.session_state["_last_gh_sync_ts"] = now
+            elif err and force_github:
+                st.warning(f"⚠️ 進度已存在本機，但雲端同步失敗：{err}")
 
     except Exception as e:
         st.warning(f"⚠️ 進度儲存時發生錯誤: {e}")
 
 
 def update_last_reading_position(unit_id: int, card_idx: int = 0):
-    """Updates the active reading position and persists immediately."""
+    """Updates the active reading position and persists (throttled — this
+    fires on every flashcard click, so it does not force a GitHub sync
+    every time; the local save still happens immediately)."""
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     st.session_state["active_unit"] = unit_id
     st.session_state[f"unit_{unit_id}_card_idx"] = card_idx
     st.session_state["last_study_time"] = now_str
-    save_persistent_progress()
+    save_persistent_progress(force_github=False)
 
 
 def switch_user(new_user: str):
@@ -301,10 +337,7 @@ def render_user_switcher_sidebar():
             if new_name.strip():
                 formatted_name = f"🌟 {new_name.strip()}"
                 data["users"][formatted_name] = get_default_user_data()
-                _save_to_github(data)
-                os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
-                with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
+                save_full_progress_data(data)
                 switch_user(formatted_name)
                 st.success(f"已新增並切換至 {formatted_name}！")
                 st.rerun()
@@ -525,10 +558,7 @@ def render_dashboard(total_units: int, total_words: int):
         if upload_backup is not None:
             try:
                 loaded = json.load(upload_backup)
-                _save_to_github(loaded)
-                os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
-                with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-                    json.dump(loaded, f, ensure_ascii=False, indent=2)
+                save_full_progress_data(loaded)
                 switch_user(loaded.get("current_user", "👦 Timmy"))
                 st.success("成功還原全體小孩的學習進度！")
                 st.rerun()

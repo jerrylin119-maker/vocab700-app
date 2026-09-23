@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Streamlit secrets (never commit — GITHUB_TOKEN etc. live in Streamlit Cloud settings)
+.streamlit/secrets.toml
+
+# Local progress fallback (real data lives on the data-storage GitHub branch)
+data/user_progress.json
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
