@@ -2,10 +2,10 @@
 Personal Word Bank component.
 User types only the English word; system auto-looks up all data.
 Words NOT found in either the 700-word DB or the dictionary API are REJECTED (not saved).
-Data is stored per-user inside data/user_progress.json under 'my_words'.
+Data is stored per-user inside data/user_progress.json under 'my_words', persisted
+locally and to GitHub via components.progress_tracker (same path as quiz/unit progress).
 """
 
-import os
 import json
 import datetime
 import urllib.request
@@ -13,7 +13,7 @@ import urllib.error
 import streamlit as st
 from typing import List, Dict, Any
 
-PROGRESS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "user_progress.json")
+from components.progress_tracker import load_persistent_progress, save_full_progress_data
 
 POS_MAP = {
     "noun": "n.", "verb": "v.", "adjective": "adj.",
@@ -23,19 +23,11 @@ POS_MAP = {
 
 
 def _load_progress_raw() -> Dict:
-    if os.path.exists(PROGRESS_FILE):
-        try:
-            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"current_user": "Timmy", "users": {}}
+    return load_persistent_progress()
 
 
 def _save_progress_raw(data: Dict):
-    os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
-    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    save_full_progress_data(data)
 
 
 def load_user_word_bank(user: str) -> List[Dict]:

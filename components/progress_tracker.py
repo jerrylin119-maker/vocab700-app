@@ -157,6 +157,19 @@ def load_persistent_progress() -> Dict[str, Any]:
     return data
 
 
+def save_full_progress_data(data: Dict[str, Any]):
+    """Persists an already-assembled progress dict locally and to GitHub.
+
+    Shared by any caller (e.g. the word bank) that reads/writes the full
+    progress structure directly instead of going through session_state,
+    so every writer ends up on the same GitHub-backed persistence path.
+    """
+    os.makedirs(os.path.dirname(PROGRESS_FILE), exist_ok=True)
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    _save_to_github(data)
+
+
 def save_persistent_progress():
     """Saves current session progress both locally and to GitHub."""
     try:
