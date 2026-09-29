@@ -62,3 +62,7 @@ streamlit run app.py
 ## 部署
 
 Streamlit Community Cloud 從 `main` 分支自動部署，push 到 `main` 就會自動重新部署。`data-storage` 分支**只**用來存資料，不會被部署，也不應該把它跟 `main` merge。
+
+## 防止休眠
+
+Streamlit Community Cloud 免費方案的 App 太久沒人造訪會自動休眠，下次打開要手動點「喚醒」並等它重開機。[`.github/workflows/keep-alive.yml`](.github/workflows/keep-alive.yml) 這支排程每天會自動造訪網站 3 次，讓它保持醒著（跟 [fire_safety_training](https://github.com/jerrylin119-maker) 那個專案用的是同一支腳本）。可以到 repo 的 **Actions** 分頁手動觸發測試，或看歷次執行紀錄確認有沒有正常運作。
